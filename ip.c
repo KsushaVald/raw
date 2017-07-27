@@ -53,7 +53,7 @@ int main(){
 	memcpy(packet_s,ip,sizeof(struct iphdr));
 	memcpy(packet_s+sizeof(struct iphdr),udp,sizeof(struct udphdr));
 	memcpy(packet_s+sizeof(struct iphdr)+sizeof(struct udphdr),msg,strlen(msg));
-	if(sendto(fd_socket, packet_s,udp->len,0,(struct sockaddr*)&s_addr,sizeof(s_addr))==-1){
+	if(sendto(fd_socket, packet_s,htons(ip->tot_len),0,(struct sockaddr*)&s_addr,sizeof(s_addr))==-1){
 		perror("sendto");
 	}
 	while(1){

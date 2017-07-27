@@ -40,7 +40,7 @@ int main(){
 	packet_s=malloc(sizeof(struct udphdr)+strlen(msg));
 	memcpy(packet_s,udp,sizeof(struct udphdr));
 	memcpy(packet_s+sizeof(struct udphdr),msg,strlen(msg));
-	if(sendto(fd_socket, packet_s,udp->len,0,(struct sockaddr*)&s_addr,sizeof(s_addr))==-1){
+	if(sendto(fd_socket, packet_s,htons(udp->len),0,(struct sockaddr*)&s_addr,sizeof(s_addr))==-1){
 		perror("sendto");
 	}
 	while(1){
