@@ -19,12 +19,13 @@ int main(){
 	char *mes_r;
 	struct udphdr *udp; struct iphdr *ip;
 	char *packet_s;
-	char packet_r[1000];
+	char packet_r[1500];
 	socklen_t len=sizeof(struct sockaddr);
 	s_addr.sin_family=AF_INET;
 	s_addr.sin_port=htons(55555);
-	s_addr.sin_addr.s_addr=inet_addr("192.168.2.1");
+	s_addr.sin_addr.s_addr=inet_addr("192.168.1.48");
 	memset(datagram,0,1500);
+	memset(packet_r,0,1500);
 	fd_socket=socket(AF_INET,SOCK_RAW,IPPROTO_UDP);
 	if(fd_socket<0){
 		perror("socket");
@@ -42,8 +43,8 @@ int main(){
 	ip->ttl=0;
 	ip->protocol=IPPROTO_UDP;
 	ip->check=0;
-	ip->saddr=inet_addr("192.168.2.1");
-	ip->daddr=inet_addr("192.168.2.1");
+	ip->saddr=inet_addr("192.168.1.48");
+	ip->daddr=inet_addr("192.168.1.48");
 	udp=(struct udphdr*)(datagram+sizeof(struct iphdr));
 	udp->source=htons(35277);
 	udp->dest=htons(55555);
@@ -57,11 +58,11 @@ int main(){
 		perror("sendto");
 	}
 	while(1){
-		if(recvfrom(fd_socket,&packet_r,1000,0,(struct sockaddr*)&s_addr,&len)==-1){
+		if(recvfrom(fd_socket,&packet_r,1500,0,(struct sockaddr*)&s_addr,&len)==-1){
 			perror("recvfrom");
 		}
 		mes_r=(char*)(packet_r+sizeof(struct iphdr)+sizeof(struct udphdr));
 		printf("%s\n", mes_r);
-		memset(packet_r,0,1000);
+		memset(packet_r,0,1500);
 	}
 }

@@ -17,7 +17,9 @@
 int main(){
 
 	struct sockaddr_in s_addr; struct sockaddr_ll sl_addr;
-	struct ifreq ifr, ifr2; char *mac; ;
+	struct ifreq ifr, ifr2; u_char mac_p[6];
+	u_char mac_s[6]={0x00,0x00,0x00,0x00,0x00,0x00};
+	u_char mac_d[6]={0xac,0xe0,0x10,0x56,0x4e,0x48};
 	int fd_socket; int test, flag=1; int log=0;
 	char datagram[1500]; int i;
 	char msg[6]="hello\0";
@@ -29,7 +31,7 @@ int main(){
 	socklen_t len=sizeof(struct sockaddr);
 	s_addr.sin_family=AF_INET;
 	s_addr.sin_port=htons(55555);
-	s_addr.sin_addr.s_addr=inet_addr("192.168.2.1");
+	s_addr.sin_addr.s_addr=inet_addr("192.168.1.48");
 
 	memset(datagram,0,1500);
 	fd_socket=socket(AF_PACKET,SOCK_RAW,ETH_P_ALL);
@@ -37,11 +39,11 @@ int main(){
 		perror("socket");
 	}
 
-	ifr2.ifr_addr.sa_family=AF_PACKET;
-	strncpy(ifr2.ifr_name,"eth0", IFNAMSIZ-1);
+/*	ifr2.ifr_addr.sa_family=AF_PACKET;
+	strncpy(ifr2.ifr_name,"lo", IFNAMSIZ-1);
 	ioctl(fd_socket,SIOCGIFHWADDR,&ifr2);
-	mac=(u_char*)ifr2.ifr_hwaddr.sa_data;
-	strncpy(ifr.ifr_name,"eth0", IFNAMSIZ-1);
+	mac=(u_char*)ifr2.ifr_hwaddr.sa_data;*/
+	strncpy(ifr.ifr_name,"wlp2s0", IFNAMSIZ-1);
  	ioctl(fd_socket,SIOCGIFINDEX,&ifr);
 	sl_addr.sll_family=AF_PACKET;
 	sl_addr.sll_protocol=ETH_P_IP;
@@ -49,10 +51,14 @@ int main(){
 	sl_addr.sll_hatype=ARPHRD_ETHER;
 	sl_addr.sll_pkttype=PACKET_OTHERHOST;
 	sl_addr.sll_halen=ETH_ALEN;
-
+//	printf("MAC:  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+	for(i=0; i<5; i++){
+		mac_p[5-i]=mac_s[i];
+	}
+//	printf("MAC:  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n", p_mac[0],p_mac[1],p_mac[2],p_mac[3],p_mac[4],p_mac[5]);*/
 	ether=(struct ether_header*)datagram;
-	strcpy(ether->ether_dhost,mac);
-	strcpy(ether->ether_shost,mac);
+	strcpy(ether->ether_dhost,mac_p);
+	strcpy(ether->ether_shost,mac_d);
 	ether->ether_type=ETH_P_IP;
 	ip=(struct iphdr*)(datagram+sizeof(struct ether_header));
 	ip->version=4;
@@ -64,8 +70,8 @@ int main(){
 	ip->ttl=0;
 	ip->protocol=IPPROTO_UDP;
 	ip->check=0;
-	ip->saddr=inet_addr("192.168.2.1");
-	ip->daddr=inet_addr("192.168.2.1");
+	ip->saddr=inet_addr("192.168.1.48");
+	ip->daddr=inet_addr("192.168.1.48");
 	udp=(struct udphdr*)(datagram+sizeof(struct ether_header)+sizeof(struct iphdr));
 	udp->source=htons(35277);
 	udp->dest=htons(55555);
