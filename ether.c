@@ -41,16 +41,16 @@ int main(){
 	u_char mac_d[6]={0x00,0x00,0x00,0x00,0x00,0x00};
 	u_char mac_ps[6];
 	u_char mac_pd[6];
-	char datagram[1500];
+	char datagram[2000];
 	char msg[6]="hello\0";
 	char *mes_r;
 	struct udphdr *udp; struct iphdr *ip; struct ether_header *ether;
 	char *packet_s;
-	char packet_r[1500];
+	char packet_r[2000];
 	socklen_t len=sizeof(struct sockaddr);
 
-	memset(datagram,0,1500);
-	memset(packet_r,0,1500);
+	memset(datagram,0,2000);
+	memset(packet_r,0,2000);
 	fd_socket=socket(AF_PACKET,SOCK_RAW,htons(ETH_P_ALL));
 	if(fd_socket<0){
 		perror("socket");
@@ -83,9 +83,9 @@ int main(){
 	ip->id=htons(35);
 	ip->frag_off=0;
 	ip->ttl=0;
-	ip->ttl=checksum((unsigned short*)ip,(unsigned int)(ip->ihl<<2));
 	ip->protocol=IPPROTO_UDP;
 	ip->check=0;
+	ip->check=checksum((unsigned short*)ip,(unsigned int)(ip->ihl<<2));
 	ip->saddr=inet_addr("192.168.1.34");
 	ip->daddr=inet_addr("192.168.1.34");
 	udp=(struct udphdr*)(datagram+sizeof(struct iphdr));
@@ -93,19 +93,20 @@ int main(){
 	udp->dest=htons(55555);
 	udp->len=htons(sizeof(struct udphdr)+strlen(msg));
 	udp->check=0;
-	packet_s=malloc(sizeof(struct iphdr)+sizeof(struct udphdr)+strlen(msg));
-	memcpy(packet_s,ip,sizeof(struct iphdr));
-	memcpy(packet_s+sizeof(struct iphdr),udp,sizeof(struct udphdr));
-	memcpy(packet_s+sizeof(struct iphdr)+sizeof(struct udphdr),msg,strlen(msg));
-	if(sendto(fd_socket, packet_s,htons(ip->tot_len),0,(struct sockaddr*)&sl_addr,sizeof(sl_addr))==-1){
+	packet_s=malloc(sizeof(struct ether_header)+sizeof(struct iphdr)+sizeof(struct udphdr)+strlen(msg));
+	memcpy(packet_s,ether,sizeof(struct ether_header));
+	memcpy(packet_s+sizeof(struct ether_header),ip,sizeof(struct iphdr));
+	memcpy(packet_s+sizeof(struct ether_header)+sizeof(struct iphdr),udp,sizeof(struct udphdr));
+	memcpy(packet_s+sizeof(struct ether_header)+sizeof(struct iphdr)+sizeof(struct udphdr),msg,strlen(msg));
+	if(sendto(fd_socket, packet_s,sizeof(struct ether_header)+ntohs(ip->tot_len),0,(struct sockaddr*)&sl_addr,sizeof(sl_addr))==-1){
 		perror("sendto");
 	}
 	while(1){
-		if(recvfrom(fd_socket,&packet_r,1500,0,(struct sockaddr*)&s_addr,&len)==-1){
+		if(recvfrom(fd_socket,&packet_r,2000,0,(struct sockaddr*)&s_addr,&len)==-1){
 			perror("recvfrom");
 		}
-		mes_r=(char*)(packet_r+sizeof(struct iphdr)+sizeof(struct udphdr));
+		mes_r=(char*)(packet_r+sizeof(struct ether_header)+sizeof(struct iphdr)+sizeof(struct udphdr));
 		printf("%s\n", mes_r);
-		memset(packet_r,0,1500);
+		memset(packet_r,0,2000);
 	}
 }
