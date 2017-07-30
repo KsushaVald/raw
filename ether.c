@@ -10,57 +10,72 @@
 #include <netinet/udp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <netinet/if_ether.h>
-#include <net/if.h>
 #include <sys/ioctl.h>
+#include <net/if.h>
 #include <linux/if_packet.h>
+#include <netinet/if_ether.h>
+
+static unsigned short checksum(unsigned short *ptr,unsigned int size){
+        register unsigned long  sum=0;
+        while(size>1){
+                sum+=*ptr++;
+                size-=2;
+        }
+        if(size>0){
+                sum+=((*ptr)&htons(0xFF00));
+        }
+        while(sum>>16){
+        sum=(sum & 0xffff)+(sum>>16);
+        }
+        sum=~sum;
+        return ((unsigned short)sum);
+}
+
+
 int main(){
 
 	struct sockaddr_in s_addr; struct sockaddr_ll sl_addr;
-	struct ifreq ifr, ifr2; u_char mac_p[6];
-	u_char mac_s[6]={0x00,0x00,0x00,0x00,0x00,0x00};
-	u_char mac_d[6]={0xac,0xe0,0x10,0x56,0x4e,0x48};
-	int fd_socket; int test, flag=1; int log=0;
-	char datagram[1500]; int i;
+	struct ifreq ifr;
+	int fd_socket; int test, flag=1; int log=0, i;
+	u_char mac_s[6]={0xac,0xe0,0x10,0x56,0x4e,0x48};
+	u_char mac_d[6]={0x00,0x00,0x00,0x00,0x00,0x00};
+	u_char mac_ps[6];
+	u_char mac_pd[6];
+	char datagram[1500];
 	char msg[6]="hello\0";
 	char *mes_r;
 	struct udphdr *udp; struct iphdr *ip; struct ether_header *ether;
 	char *packet_s;
 	char packet_r[1500];
-
 	socklen_t len=sizeof(struct sockaddr);
-	s_addr.sin_family=AF_INET;
-	s_addr.sin_port=htons(55555);
-	s_addr.sin_addr.s_addr=inet_addr("192.168.1.48");
 
 	memset(datagram,0,1500);
-	fd_socket=socket(AF_PACKET,SOCK_RAW,ETH_P_ALL);
+	memset(packet_r,0,1500);
+	fd_socket=socket(AF_PACKET,SOCK_RAW,htons(ETH_P_ALL));
 	if(fd_socket<0){
 		perror("socket");
 	}
-
-/*	ifr2.ifr_addr.sa_family=AF_PACKET;
-	strncpy(ifr2.ifr_name,"lo", IFNAMSIZ-1);
-	ioctl(fd_socket,SIOCGIFHWADDR,&ifr2);
-	mac=(u_char*)ifr2.ifr_hwaddr.sa_data;*/
-	strncpy(ifr.ifr_name,"wlp2s0", IFNAMSIZ-1);
- 	ioctl(fd_socket,SIOCGIFINDEX,&ifr);
-	sl_addr.sll_family=AF_PACKET;
-	sl_addr.sll_protocol=ETH_P_IP;
-	sl_addr.sll_ifindex=ifr.ifr_ifindex;
-	sl_addr.sll_hatype=ARPHRD_ETHER;
-	sl_addr.sll_pkttype=PACKET_OTHERHOST;
-	sl_addr.sll_halen=ETH_ALEN;
-//	printf("MAC:  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-	for(i=0; i<5; i++){
-		mac_p[5-i]=mac_s[i];
+	if(setsockopt(fd_socket,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(flag))==-1){
+			perror("setsockopt");
 	}
-//	printf("MAC:  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n", p_mac[0],p_mac[1],p_mac[2],p_mac[3],p_mac[4],p_mac[5]);*/
+	strncpy(ifr.ifr_name,"lo", IFNAMSIZ-1);
+        ioctl(fd_socket,SIOCGIFINDEX,&ifr);
+        sl_addr.sll_family=AF_PACKET;
+        sl_addr.sll_protocol=htons(ETH_P_IP);
+        sl_addr.sll_ifindex=ifr.ifr_ifindex;
+        sl_addr.sll_hatype=ARPHRD_ETHER;
+        sl_addr.sll_pkttype=PACKET_MULTICAST;
+        sl_addr.sll_halen=ETH_ALEN;
+
+	for(i=0; i<5; i++){
+		mac_ps[5-i]=mac_s[i];
+		mac_pd[5-i]=mac_d[i];
+	}
 	ether=(struct ether_header*)datagram;
-	strcpy(ether->ether_dhost,mac_p);
-	strcpy(ether->ether_shost,mac_d);
-	ether->ether_type=ETH_P_IP;
-	ip=(struct iphdr*)(datagram+sizeof(struct ether_header));
+	strcpy(ether->ether_dhost,mac_ps);
+	strcpy(ether->ether_shost,mac_pd);
+	ether->ether_type=htons(ETH_P_IP);
+	ip=(struct iphdr*)(datagram+sizeof(struct ether_header*));
 	ip->version=4;
 	ip->ihl=5;
 	ip->tos=0;
@@ -68,29 +83,28 @@ int main(){
 	ip->id=htons(35);
 	ip->frag_off=0;
 	ip->ttl=0;
+	ip->ttl=checksum((unsigned short*)ip,(unsigned int)(ip->ihl<<2));
 	ip->protocol=IPPROTO_UDP;
 	ip->check=0;
-	ip->saddr=inet_addr("192.168.1.48");
-	ip->daddr=inet_addr("192.168.1.48");
-	udp=(struct udphdr*)(datagram+sizeof(struct ether_header)+sizeof(struct iphdr));
+	ip->saddr=inet_addr("192.168.1.34");
+	ip->daddr=inet_addr("192.168.1.34");
+	udp=(struct udphdr*)(datagram+sizeof(struct iphdr));
 	udp->source=htons(35277);
 	udp->dest=htons(55555);
 	udp->len=htons(sizeof(struct udphdr)+strlen(msg));
 	udp->check=0;
-	packet_s=malloc(sizeof(struct ether_header)+sizeof(struct iphdr)+sizeof(struct udphdr)+strlen(msg));
-	memcpy(packet_s,ether,sizeof(struct ether_header));
-	memcpy(packet_s+sizeof(struct ether_header),ip,sizeof(struct iphdr));
-	memcpy(packet_s+sizeof(struct ether_header)+sizeof(struct iphdr),udp,sizeof(struct udphdr));
-	memcpy(packet_s+sizeof(struct ether_header)+sizeof(struct iphdr)+sizeof(struct udphdr),msg,strlen(msg));
-	if(sendto(fd_socket, packet_s,sizeof(struct ether_header)+htons(ip->tot_len),0,(struct sockaddr*)&sl_addr,sizeof(sl_addr))==-1){
+	packet_s=malloc(sizeof(struct iphdr)+sizeof(struct udphdr)+strlen(msg));
+	memcpy(packet_s,ip,sizeof(struct iphdr));
+	memcpy(packet_s+sizeof(struct iphdr),udp,sizeof(struct udphdr));
+	memcpy(packet_s+sizeof(struct iphdr)+sizeof(struct udphdr),msg,strlen(msg));
+	if(sendto(fd_socket, packet_s,htons(ip->tot_len),0,(struct sockaddr*)&sl_addr,sizeof(sl_addr))==-1){
 		perror("sendto");
-		exit(-1);
 	}
 	while(1){
 		if(recvfrom(fd_socket,&packet_r,1500,0,(struct sockaddr*)&s_addr,&len)==-1){
 			perror("recvfrom");
 		}
-		mes_r=(char*)(packet_r+sizeof(struct ether_header)+sizeof(struct iphdr)+sizeof(struct udphdr));
+		mes_r=(char*)(packet_r+sizeof(struct iphdr)+sizeof(struct udphdr));
 		printf("%s\n", mes_r);
 		memset(packet_r,0,1500);
 	}
