@@ -37,8 +37,8 @@ int main(){
 	struct sockaddr_in s_addr; struct sockaddr_ll sl_addr;
 	struct ifreq ifr;
 	int fd_socket; int test, flag=1; int log=0, i;
-	u_char mac_s[6]={0xac,0xe0,0x10,0x56,0x4e,0x48};
-	u_char mac_d[6]={0x00,0x00,0x00,0x00,0x00,0x00};
+	u_char mac_s[6]={0x1c,0xb7,0x2c,0x88,0x1b,0x7f};
+	u_char mac_d[6]={0x00,0x1e,0x67,0x38,0xd0,0x89};
 	u_char mac_ps[6];
 	u_char mac_pd[6];
 	char datagram[2000];
@@ -48,7 +48,7 @@ int main(){
 	char *packet_s;
 	char packet_r[2000];
 	socklen_t len=sizeof(struct sockaddr);
-
+	ether=malloc(sizeof(struct ether_header*));
 	memset(datagram,0,2000);
 	memset(packet_r,0,2000);
 	fd_socket=socket(AF_PACKET,SOCK_RAW,htons(ETH_P_ALL));
@@ -58,37 +58,36 @@ int main(){
 	if(setsockopt(fd_socket,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(flag))==-1){
 			perror("setsockopt");
 	}
-	strncpy(ifr.ifr_name,"lo", IFNAMSIZ-1);
+	strncpy(ifr.ifr_name,"enp3s0f2", IFNAMSIZ-1);
         ioctl(fd_socket,SIOCGIFINDEX,&ifr);
         sl_addr.sll_family=AF_PACKET;
         sl_addr.sll_protocol=htons(ETH_P_IP);
         sl_addr.sll_ifindex=ifr.ifr_ifindex;
         sl_addr.sll_hatype=ARPHRD_ETHER;
-        sl_addr.sll_pkttype=PACKET_MULTICAST;
+        sl_addr.sll_pkttype=PACKET_OTHERHOST;
         sl_addr.sll_halen=ETH_ALEN;
-
-	for(i=0; i<5; i++){
-		mac_ps[5-i]=mac_s[i];
-		mac_pd[5-i]=mac_d[i];
+	//ether=(struct ether_header*)datagram;
+	for(i=0; i<6; i++){
+		ether->ether_shost[i]=mac_s[i];
+		ether->ether_dhost[i]=mac_d[i];
 	}
-	ether=(struct ether_header*)datagram;
-	strcpy(ether->ether_dhost,mac_ps);
-	strcpy(ether->ether_shost,mac_pd);
 	ether->ether_type=htons(ETH_P_IP);
-	ip=(struct iphdr*)(datagram+sizeof(struct ether_header*));
+//	ip=(struct iphdr*)(datagram+sizeof(struct ether_header*));
+	ip=malloc(sizeof(struct iphdr));
 	ip->version=4;
 	ip->ihl=5;
 	ip->tos=0;
 	ip->tot_len=htons(sizeof(struct iphdr)+sizeof(struct udphdr)+strlen(msg));
 	ip->id=htons(35);
 	ip->frag_off=0;
-	ip->ttl=0;
+	ip->ttl=255;
 	ip->protocol=IPPROTO_UDP;
 	ip->check=0;
 	ip->check=checksum((unsigned short*)ip,(unsigned int)(ip->ihl<<2));
-	ip->saddr=inet_addr("192.168.1.34");
-	ip->daddr=inet_addr("192.168.1.34");
-	udp=(struct udphdr*)(datagram+sizeof(struct iphdr));
+	ip->saddr=inet_addr("192.168.2.61");
+	ip->daddr=inet_addr("192.168.2.1");
+	udp=malloc(sizeof(struct udphdr));
+//	udp=(struct udphdr*)(datagram+sizeof(struct iphdr));
 	udp->source=htons(35277);
 	udp->dest=htons(55555);
 	udp->len=htons(sizeof(struct udphdr)+strlen(msg));
