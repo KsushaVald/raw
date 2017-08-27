@@ -82,10 +82,10 @@ int main(){
 	ip->frag_off=0;
 	ip->ttl=255;
 	ip->protocol=IPPROTO_UDP;
-	ip->check=0;
-	ip->check=checksum((unsigned short*)ip,(unsigned int)(ip->ihl<<2));
 	ip->saddr=inet_addr("192.168.2.61");
 	ip->daddr=inet_addr("192.168.2.1");
+	ip->check=0;
+	ip->check=checksum((unsigned short*)ip,(unsigned int)(ip->ihl<<2));
 	udp=malloc(sizeof(struct udphdr));
 //	udp=(struct udphdr*)(datagram+sizeof(struct iphdr));
 	udp->source=htons(35277);
